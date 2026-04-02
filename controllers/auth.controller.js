@@ -1,0 +1,353 @@
+const userModel = require('../models/auth.model')
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+const sendEmail = require('../services/email.service')
+const otpModel = require('../models/otp.model')
+const otpBody = require('../utils/util')
+
+
+const register = async (req, res) => {
+    const {email, name, username, password} = req.body
+
+    const userExists = await userModel.findOne({
+        $or: [{email}, {username}]
+    })
+
+    if(userExists) {
+
+        if(userExists.email === email) {
+        return res.status(409).json({
+            message: 'Email Exists'
+        })
+        } 
+        
+        if(userExists.username === username) {
+            return res.status(409).json({
+                message: 'Username Exists'
+            })
+        }
+
+    }
+
+
+    const hashPass = await bcrypt.hash(password, 10)
+
+    const otp = otpBody.generateOtp()
+    const html = otpBody.getOtpHtml(otp)
+
+    const otpHash = await bcrypt.hash(otp, 10)
+
+    await otpModel.create({
+        email,
+        name,
+        username,
+        password: hashPass,
+        otpHash
+    })
+
+    const verifyToken = jwt.sign({
+        email: email
+    }, process.env.JWT_SECRET)
+
+    res.cookie('verifyToken', verifyToken)
+
+    await sendEmail(email, 'OTP Verification', `Your OTP code is ${otp}`, html)
+
+    res.status(201).json({
+        message: 'Otp Sent Successfully',
+    })
+
+}
+
+const login = async (req, res) => {
+    const {identifier, password} = req.body
+
+    const userExists = await userModel.findOne({
+        $or: [
+            {email: identifier},
+            {username: identifier}
+        ]
+    });
+
+    if(!userExists) {
+        return res.status(404).json({
+            message: 'User not found'
+        })
+    }
+
+    const matchPass = await bcrypt.compare(password, userExists.password)
+
+    if(!matchPass) {
+        return res.status(403).json({
+            message: 'Incorrect password'
+        })
+    }
+
+    const session = jwt.sign({
+        id: userExists._id
+    }, process.env.JWT_SECRET)
+
+    res.cookie('session', session)
+
+    res.status(201).json({
+        message: 'logged in',
+        user: {
+            email: userExists.email,
+            username: userExists.username
+        }
+    })
+}
+
+const logout = async (req, res) => {
+    const token = req.cookies.session
+
+    if(!token) {
+        return res.status(404).json({
+            message: 'Token not found'
+        })
+    }
+
+    res.clearCookie('session')
+
+    res.status(200).json({
+        message: 'Logged out'
+    })
+}
+
+const toggleFollow = async (req, res) => {
+
+    const {targetUserId} = req.params
+
+   const session = req.cookies.session
+
+    if(!session) {
+        return res.status(404).json({
+            message: 'Token not found'
+        })
+    }
+
+    let decoded;
+
+    try {
+        
+        decoded = jwt.verify(session, process.env.JWT_SECRET)
+
+        const myId = decoded.id
+
+        if(myId === targetUserId) {
+            return res.status(400).json({
+                message: 'Cannot follow yourself'
+            })
+        }
+
+        const targerUser = await userModel.findById(targetUserId)
+
+        const me = await userModel.findById(myId)
+
+        if(!me || !targerUser) {
+            return res.status(404).json({
+                message: 'User not found'
+            })
+        }
+
+        const isFollowing = me.following.includes(targetUserId);
+
+        if(isFollowing) {
+
+            await userModel.findByIdAndUpdate(myId, {$pull: {following: targetUserId}});
+
+            await userModel.findByIdAndUpdate(targetUserId, {$pull: {followers: myId}})
+
+            return res.status(200).json({
+                message: 'Unfollowed successfully'
+            })
+
+        }
+
+        await userModel.findByIdAndUpdate(myId, {$addToSet: {following: targetUserId}})
+
+        await userModel.findByIdAndUpdate(targetUserId, {$addToSet: {followers: myId}})
+
+        res.status(201).json({
+            message: 'Followed successfully'
+        })
+
+    } catch (error) {
+        console.log(error)
+    }
+
+}
+
+const getUser = async (req, res) => {
+
+    const session = req.cookies.session
+
+    if(!session) {
+        return res.status(404).json({
+            message: 'User not found'
+        })
+    }
+
+    let decoded;
+
+    try {
+        
+        decoded = jwt.verify(session, process.env.JWT_SECRET)
+
+        const user = await userModel.findById(decoded.id)
+
+        res.status(200).json({
+            message: 'User found',
+            user: user._id
+        })
+
+    } catch (error) {
+        
+    }
+
+}
+
+const resendCode = async (req, res) => {
+
+    const token = req.cookies.verifyToken
+
+    if(!token) {
+        return res.status(404).json({
+            message: 'Token not found'
+        })
+    }
+
+    let decoded;
+
+    try {
+        
+        decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+        const email = decoded.email
+
+        const otp = otpBody.generateOtp()
+        const html = otpBody.getOtpHtml(otp)
+
+        const otpHash = await bcrypt.hash(otp, 10)
+
+        const updatePrevOtp = await otpModel.findOne({email: email})
+
+        updatePrevOtp.otpHash = otpHash
+
+        await updatePrevOtp.save()
+
+        await sendEmail(email, 'OTP Verification', `Your OTP code is ${otp}`, html)
+        
+        res.status(200).json({
+            message: 'Resend successfully'
+        })
+    } catch (error) {
+        console.log(error)
+    }
+
+} 
+
+const getAllUsers = async (req, res) => {
+
+    const token = req.cookies.session
+
+    if(!token) {
+         return res.status(401).json({
+            message: 'Token not found'
+         })
+    }
+
+    let decoded;
+
+    try {
+        
+        decoded = jwt.verify(token, process.env.JWT_SECRET)
+        
+        const users = await userModel.find()
+
+        res.status(200).json({
+            message: 'All users fetched',
+            users
+        })
+
+    } catch (error) {
+        console.log(error)
+    }
+
+}
+
+const verifyOtp = async (req, res) => {
+    try {
+        const token = req.cookies.verifyToken
+
+        if(!token) {
+            return res.status(401).json({
+                message: 'Token not found'
+            })
+        }
+
+        let decoded;
+
+        try {
+
+            decoded = jwt.verify(token, process.env.JWT_SECRET)
+        
+        } catch (error) {
+            return res.status(402).json({
+                message: 'Invalid Code'
+            })
+        }
+
+        const userEmail = decoded.email
+
+        const {otp} = req.body
+
+        const otpRecord = await otpModel.findOne({email: userEmail})
+
+        if(!otpRecord) {
+            return res.status(404).json({
+                message: 'Otp expired or not found'
+            })
+        }
+
+        const isMatch = await bcrypt.compare(otp, otpRecord.otpHash)
+
+        if(!isMatch) {
+            return res.status(406).json({
+                message: 'Invalid code'
+            })
+        }
+
+        const newUser = await userModel.create({
+            name: otpRecord.name,
+            email: otpRecord.email,
+            username: otpRecord.username,
+            password: otpRecord.password,
+            isVerified: true
+        })
+
+        console.log(newUser)
+
+        await otpModel.deleteOne({_id: otpRecord._id})
+
+        res.clearCookie('verifyToken')
+
+        const session = jwt.sign({
+            id: newUser._id
+        }, process.env.JWT_SECRET)
+
+        res.cookie('session', session)
+
+        res.status(201).json({
+            message: 'Account created',
+            user: {
+                username: newUser.username,
+                email: newUser.email
+            }
+        })
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+module.exports = {register, verifyOtp, login, logout, toggleFollow, getUser, resendCode, getAllUsers}

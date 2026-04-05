@@ -41,6 +41,10 @@ const userSchema = new mongoose.Schema({
         default: 'https://ik.imagekit.io/glimpse/avatar.png'
     },
 
+    profilePictureId: {
+        type: String
+    },
+
     isVerified: {
         type: Boolean,
         default: false

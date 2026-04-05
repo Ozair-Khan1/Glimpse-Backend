@@ -18,5 +18,7 @@ router.post('/follow/:targetUserId', authController.toggleFollow)
 router.get('/get-user', authController.getUser)
 router.post('/resend-code', authController.resendCode)
 router.get('/get-all-user', authController.getAllUsers)
+router.get('/get-clicked-user/:id', authController.getClickedUser)
+router.get('/get-follower/:id', authController.getFollowers)
 
 module.exports = router

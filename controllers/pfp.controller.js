@@ -18,17 +18,10 @@ const addPfp = async (req, res) => {
             })
         }
 
-        const result = await imageKitService.uploadFile({
-            buffer: req.file.buffer,
-            folder: 'profile_pictures'
-        })
-
-        console.log(result)
-
         let decoded;
 
         try {
-            decoded = await jwt.verify(session, process.env.JWT_SECRET)
+            decoded = jwt.verify(session, process.env.JWT_SECRET)
         } catch (error) {
             console.log('decodding error', error)
         }
@@ -40,6 +33,25 @@ const addPfp = async (req, res) => {
                 messager: 'User not found'
             })
         }
+
+        if(user.profilePictureId) {
+            try {
+                
+                await imageKitService.deleteImageKitFile(user.profilePictureId)
+
+                console.log('pfp deleted')
+
+            } catch (error) {
+                console.log(error)                
+            }
+        }
+
+        const result = await imageKitService.uploadFile({
+            buffer: req.file.buffer,
+            folder: 'profile_pictures'
+        })
+
+        user.profilePictureId = result.fileId
 
         user.profilePicture = result.url;
 
@@ -74,7 +86,7 @@ const addBio = async (req, res) => {
 
         const findUser = await userModel.findByIdAndUpdate(decodded.id, {
             bio: bio
-        }, {new: true})
+        }, {returnDocument: 'after'})
 
         await findUser.save()
 

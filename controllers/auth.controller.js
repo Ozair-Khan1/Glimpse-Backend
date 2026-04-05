@@ -49,7 +49,12 @@ const register = async (req, res) => {
         email: email
     }, process.env.JWT_SECRET)
 
-    res.cookie('verifyToken', verifyToken)
+    res.cookie('verifyToken', verifyToken, {
+        httpOnly: true,
+        secure: true, 
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    })
 
     await sendEmail(email, 'OTP Verification', `Your OTP code is ${otp}`, html)
 
@@ -87,7 +92,12 @@ const login = async (req, res) => {
         id: userExists._id
     }, process.env.JWT_SECRET)
 
-    res.cookie('session', session)
+    res.cookie('session', session, {
+        httpOnly: true,
+        secure: true, 
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    })
 
     res.status(201).json({
         message: 'logged in',
@@ -107,7 +117,11 @@ const logout = async (req, res) => {
         })
     }
 
-    res.clearCookie('session')
+    res.clearCookie('session', {
+        httpOnly: true,
+        secure: true,     
+        sameSite: 'none', 
+    })
 
     res.status(200).json({
         message: 'Logged out'
@@ -156,20 +170,22 @@ const toggleFollow = async (req, res) => {
 
             await userModel.findByIdAndUpdate(myId, {$pull: {following: targetUserId}});
 
-            await userModel.findByIdAndUpdate(targetUserId, {$pull: {followers: myId}})
+            const user = await userModel.findByIdAndUpdate(targetUserId, {$pull: {followers: myId}}, {returnDocument: 'after'}).select('followers -_id')
 
             return res.status(200).json({
-                message: 'Unfollowed successfully'
+                message: 'Unfollowed successfully',
+                user
             })
 
         }
 
         await userModel.findByIdAndUpdate(myId, {$addToSet: {following: targetUserId}})
 
-        await userModel.findByIdAndUpdate(targetUserId, {$addToSet: {followers: myId}})
+        const user = await userModel.findByIdAndUpdate(targetUserId, {$addToSet: {followers: myId}}, {returnDocument: 'after'}).select('followers -_id')
 
         res.status(201).json({
-            message: 'Followed successfully'
+            message: 'Followed successfully',
+            user
         })
 
     } catch (error) {
@@ -198,7 +214,12 @@ const getUser = async (req, res) => {
 
         res.status(200).json({
             message: 'User found',
-            user: user._id
+            user: user._id,
+            username: user.username,
+            pfp: user.profilePicture,
+            bio: user.bio,
+            followers: user.followers.length,
+            following: user.following.length
         })
 
     } catch (error) {
@@ -262,8 +283,15 @@ const getAllUsers = async (req, res) => {
     try {
         
         decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+        const currentUser = await userModel.findById(decoded.id)
         
-        const users = await userModel.find()
+        const users = await userModel.find({
+            $and: [
+                { _id: { $ne: decoded.id } },
+                { _id: { $nin: currentUser.following } }
+            ]
+        })
 
         res.status(200).json({
             message: 'All users fetched',
@@ -272,6 +300,76 @@ const getAllUsers = async (req, res) => {
 
     } catch (error) {
         console.log(error)
+    }
+
+}
+
+const getClickedUser = async (req, res) => {
+
+    const {id} = req.params
+
+     const token = req.cookies.session
+
+    if(!token) {
+         return res.status(401).json({
+            message: 'Token not found'
+         })
+    }
+
+    try {
+        
+        const user = await userModel.findById(id).select('-email -password')
+
+        if(!user) {
+            return res.status(404).json({
+                message: 'User not found'
+            })
+        }
+
+        res.status(200).json({
+            username: user.username,
+            pfp: user.profilePicture,
+            bio: user.bio,
+            followers: user.followers.length,
+            following: user.following.length,
+            posts: user.posts.length
+        })
+
+    } catch (error) {
+        console.log(error)
+    }
+
+}
+
+const getFollowers = async (req, res) => {
+
+    const {id} = req.params
+
+    const token = req.cookies.session
+
+    if(!token) {
+         return res.status(401).json({
+            message: 'Token not found'
+         })
+    }
+
+    try {
+        
+        const user = await userModel.findById(id).select('followers -_id')
+
+        if(!user) {
+            return res.status(404).json({
+                message: 'User not found'
+            })
+        }
+
+        res.status(200).json({
+            message: 'Followers',
+            user
+        })
+
+    } catch (error) {
+        console.log(error)   
     }
 
 }
@@ -330,13 +428,22 @@ const verifyOtp = async (req, res) => {
 
         await otpModel.deleteOne({_id: otpRecord._id})
 
-        res.clearCookie('verifyToken')
+        res.clearCookie('verifyToken', {
+            httpOnly: true,
+            secure: true,     
+            sameSite: 'none', 
+        })
 
         const session = jwt.sign({
             id: newUser._id
         }, process.env.JWT_SECRET)
 
-        res.cookie('session', session)
+        res.cookie('session', session, {
+            httpOnly: true,
+            secure: true, 
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        })
 
         res.status(201).json({
             message: 'Account created',
@@ -350,4 +457,4 @@ const verifyOtp = async (req, res) => {
     }
 }
 
-module.exports = {register, verifyOtp, login, logout, toggleFollow, getUser, resendCode, getAllUsers}
+module.exports = {register, verifyOtp, login, logout, toggleFollow, getUser, resendCode, getAllUsers, getClickedUser, getFollowers}

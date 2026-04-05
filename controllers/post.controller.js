@@ -3,7 +3,6 @@ const imagekit = require('../services/imageKit.service')
 const jwt = require('jsonwebtoken')
 const userModel = require('../models/auth.model')
 
-
 const createPost = async (req, res) => {
 
     const session = req.cookies.session
@@ -38,7 +37,7 @@ const createPost = async (req, res) => {
         const populatePost = await newPost.populate('author', 'username, profilePicture');
 
         await userModel.findByIdAndUpdate(userId, {
-            posts: newPost._id
+            $addToSet: {posts: newPost._id}
         })
 
         res.status(201).json({
@@ -76,12 +75,10 @@ const deletePost = async (req, res) => {
             return res.status(404).json({ message: "Post not found" });
         }
 
-        // 2. Security Check: Only the author can delete their post
         if (post.author.toString() !== userId) {
             return res.status(403).json({ message: "You are not authorized to delete this post" });
         }
 
-        // 3. Delete image from ImageKit
         if (post.imageId) {
             await imagekit.deleteImageKitFile(post.imageId);
             console.log("Deleted image from ImageKit:", post.imageId);
@@ -131,7 +128,7 @@ const toggleLike = async (req, res) => {
         if(isLiked) {
             const updatedPost = await postModel.findByIdAndUpdate(postId, {
                 $pull: {likes: userId}
-            }, {new: true})
+            }, {returnDocument: 'after'})
             .populate('author', 'username profilePicture')
 
             return res.status(200).json({updatedPost})
@@ -139,7 +136,7 @@ const toggleLike = async (req, res) => {
 
         const updatedPost = await postModel.findByIdAndUpdate(postId, {
             $addToSet: {likes: userId}
-        }, {new: true})
+        }, {returnDocument: 'after'})
         .populate('author', 'username profilePicture')
 
         res.status(201).json({updatedPost})
@@ -182,18 +179,64 @@ const addComment = async (req, res) => {
             createdAt: new Date()
         };
 
-        await postModel.findByIdAndUpdate(postId, {
-            $push: {comments: comment},
-            new: true
-        }).populate('comments.user', 'username profilePicture')
+        const updatedComments = await postModel.findByIdAndUpdate(
+            postId, 
+            { $push: { comments: comment } },
+            { returnDocument: 'after' }
+        ).populate('comments.user', 'username profilePicture');
 
         res.status(201).json({
-            message: 'Comment added'
+            message: 'Comment added',
+            comments: updatedComments
         })
 
     } catch (error) {
         console.log(error)
     }
+}
+
+
+const getComments = async (req, res) => {
+
+    try {
+        const { postId } = req.params;
+        
+        const post = await postModel.findById(postId)
+            .populate({
+                path: 'comments',
+                populate: { path: 'user', select: 'username profilePicture _id' }
+            });
+
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+
+        res.status(200).json(post.comments.reverse());
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+
+}
+
+const gerProfilePostComment = async (req, res) => {
+
+    try {
+        const { postId } = req.params;
+
+        const post = await postModel.findById(postId).populate({
+            path: 'comments',
+            populate: { path: 'user', select: 'username profilePicture' }
+        });
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found', success: false });
+        }
+
+        res.status(200).json(post.comments.reverse());
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+
 }
 
 
@@ -254,11 +297,40 @@ const getMyPosts = async (req, res) => {
         .populate('author', 'username profilePicture')
         .sort({createdAt: -1})
 
-        res.status(200).json(posts)
+         res.status(200).json({
+            posts: posts,
+            postLength: posts.length
+        })
     } catch (error) {
         console.log(error)
     }
 
 }
 
-module.exports = {createPost, toggleLike, addComment, getFollowedPosts, deletePost, getMyPosts}
+const getPostById = async (req, res) => {
+
+    const {id} = req.params
+
+    const session = req.cookies.session
+
+    if(!session) {
+        return res.status(404).json({
+            message: 'User not found'
+        })
+    }
+
+    try {
+        
+        const post = await postModel.find({author: id})
+        .populate('author', 'username profilePicture')
+        .sort({createdAt: -1})
+
+        res.status(200).json(post)
+
+    } catch (error) {
+        console.log(error)
+    }
+
+}
+
+module.exports = {createPost, toggleLike, addComment, getFollowedPosts, deletePost, getMyPosts, getComments, gerProfilePostComment, getPostById}

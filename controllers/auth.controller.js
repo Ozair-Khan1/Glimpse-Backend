@@ -223,7 +223,7 @@ const getUser = async (req, res) => {
         })
 
     } catch (error) {
-        
+        console.log(error)
     }
 
 }
@@ -291,7 +291,7 @@ const getAllUsers = async (req, res) => {
                 { _id: { $ne: decoded.id } },
                 { _id: { $nin: currentUser.following } }
             ]
-        })
+        }).select('username profilePicture _id')
 
         res.status(200).json({
             message: 'All users fetched',

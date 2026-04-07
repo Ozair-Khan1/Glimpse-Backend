@@ -4,16 +4,10 @@ dotEnv.config()
 const app = require('./app')
 const connectDB = require('./db/db')
 
+connectDB()
 
-const startServer = async () => {
-    try {
-        await connectDB();
-        app.listen(process.env.PORT_NUM, () => {
-            console.log('Server is running and DB is ready');
-        });
-    } catch (error) {
-        console.error('Failed to start server:', error);
-    }
-};
+app.listen(process.env.PORT_NUM, () => {
+    console.log('server is running')
+})
 
-startServer()
+module.exports = app

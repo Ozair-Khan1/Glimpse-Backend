@@ -63,7 +63,16 @@ const userSchema = new mongoose.Schema({
     posts: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Post'
-    }]
+    }],
+
+    stories: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Story'
+    },
+
+    storiesImg: {
+        type: String
+    }
 }, {
     timestamps: true
 });

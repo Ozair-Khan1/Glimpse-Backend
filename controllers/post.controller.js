@@ -26,7 +26,7 @@ const createPost = async (req, res) => {
             author: userId,
             caption: caption,
             imageUrl: imageUrl,
-            imageId: imageUrl // We use the url for Vercel Blob deletion
+            imageId: imageUrl
         })
 
         const populatePost = await newPost.populate('author', 'username, profilePicture');

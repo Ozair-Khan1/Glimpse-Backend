@@ -1,18 +1,14 @@
 const jwt = require('jsonwebtoken')
 const storyModel = require('../models/story.model')
-const imageKit = require('../services/imageKit.service')
+const { del } = require('@vercel/blob')
 const userModel = require('../models/auth.model')
 
 
 const addStory = async (req, res) => {
-    
+
     const session = req.cookies.session
 
-    if(!req.file) {
-        return res.status(404).json({
-            message: 'File not found'
-        })
-    } else if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -21,49 +17,44 @@ const addStory = async (req, res) => {
     let decoded;
 
     try {
-        
+        const { imageUrl } = req.body
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const user = await userModel.findById(decoded.id)
 
-    if(user.storiesImg) {
-        try {
-            
-            await imageKit.deleteImageKitFile(user.storiesImg)
+        if (user.storiesImg) {
+            try {
 
-            console.log('story image deleted')
+                await del(user.storiesImg)
 
-        } catch (error) {
-            console.log('Image kit', error)
+                console.log('story image deleted')
+
+            } catch (error) {
+                console.log('Blob', error)
+            }
         }
-    }
 
-    const result = await imageKit.uploadFile({
-        buffer: req.file.buffer,
-        originalname: req.file.originalname,
-        folder: 'Story_images'
-    })
+        await storyModel.findByIdAndDelete(user.stories)
 
-    user.storiesImg = result.fileId
+        const story = await storyModel.create({
+            author: decoded.id,
+            imageUrl: imageUrl,
+            imageId: imageUrl
+        })
 
-    await storyModel.findByIdAndDelete(user.stories)
+        user.storiesImg = imageUrl
 
-    const story = await storyModel.create({
-        author: decoded.id,
-        imageUrl: result.url,
-        imageId: result.fileId
-    })
+        user.stories = story._id
 
-    const populateStory = await story.populate('author', 'username profilePicture')
+        await user.save()
 
-    user.stories = story._id
+        const populateStory = await story.populate('author', 'username profilePicture')
 
-    await user.save()
-
-    res.status(201).json({
-        message: 'Story created',
-        story: populateStory
-    })
+        res.status(201).json({
+            message: 'Story created',
+            story: populateStory
+        })
     } catch (error) {
         console.log(error)
     }
@@ -71,10 +62,10 @@ const addStory = async (req, res) => {
 
 const likeStory = async (req, res) => {
 
-    const {storyId} = req.params
+    const { storyId } = req.params
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -83,14 +74,14 @@ const likeStory = async (req, res) => {
     let decoded;
 
     try {
-        
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const userId = decoded.id
 
         const story = await storyModel.findById(storyId)
 
-        if(!story) {
+        if (!story) {
             return res.status(404).json({
                 message: 'Story not found'
             })
@@ -98,12 +89,12 @@ const likeStory = async (req, res) => {
 
         const isLiked = story.likes.includes(userId)
 
-        if(isLiked) {
-            
+        if (isLiked) {
+
             const updatedStory = await storyModel.findByIdAndUpdate(storyId, {
-                $pull: {likes: userId}
-            }, {returnDocument: 'after'})
-            .populate('author', 'username profilePicture')
+                $pull: { likes: userId }
+            }, { returnDocument: 'after' })
+                .populate('author', 'username profilePicture')
 
             return res.status(200).json({
                 message: 'Story unliked',
@@ -112,9 +103,9 @@ const likeStory = async (req, res) => {
         }
 
         const updatedStory = await storyModel.findByIdAndUpdate(storyId, {
-            $addToSet: {likes: userId}
-        }, {returnDocument: 'after'})
-        .populate('author', 'username profilePicture')
+            $addToSet: { likes: userId }
+        }, { returnDocument: 'after' })
+            .populate('author', 'username profilePicture')
 
         res.status(200).json({
             message: 'Story liked',
@@ -128,11 +119,11 @@ const likeStory = async (req, res) => {
 
 const addComment = async (req, res) => {
 
-    const {storyId} = req.params
-    const {text} = req.body
+    const { storyId } = req.params
+    const { text } = req.body
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -141,7 +132,7 @@ const addComment = async (req, res) => {
     let decoded;
 
     try {
-        
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const userId = decoded.id
@@ -153,9 +144,9 @@ const addComment = async (req, res) => {
         }
 
         const updatedComments = await storyModel.findByIdAndUpdate(storyId, {
-            $push: {comments: comment}
-        }, {returnDocument: 'after'})
-        .populate('comments.user', 'username profilePicture')
+            $push: { comments: comment }
+        }, { returnDocument: 'after' })
+            .populate('comments.user', 'username profilePicture')
 
         res.status(201).json({
             message: 'Comment added',
@@ -172,7 +163,7 @@ const getComments = async (req, res) => {
 
     try {
         const { storyId } = req.params;
-        
+
         const story = await storyModel.findById(storyId)
             .populate({
                 path: 'comments',
@@ -192,12 +183,12 @@ const getComments = async (req, res) => {
 
 const deleteStory = async (req, res) => {
 
-    const {storyId} = req.params
+    const { storyId } = req.params
 
     const session = req.cookies.session
 
-    if(!session) {
-         return res.status(404).json({
+    if (!session) {
+        return res.status(404).json({
             message: 'User not found'
         })
     }
@@ -219,10 +210,15 @@ const deleteStory = async (req, res) => {
             return res.status(403).json({ message: "You are not authorized to delete this story" });
         }
 
-        if (story.imageId) {
-            await imageKit.deleteImageKitFile(story.imageId);
-            console.log("Deleted image from ImageKit:", story.imageId);
+        if (story.imageUrl) {
+            try {
+                await del(story.imageUrl);
+                console.log("Deleted media from Vercel Blob:", story.imageUrl);
+            } catch (err) {
+                console.error("Vercel Blob Delete Error:", err);
+            }
         }
+
         await storyModel.findByIdAndDelete(storyId);
 
         const user = await userModel.findById(userId)
@@ -244,7 +240,7 @@ const getFollowedStory = async (req, res) => {
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -253,7 +249,7 @@ const getFollowedStory = async (req, res) => {
     let decoded;
 
     try {
-        
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const myId = decoded.id
@@ -262,8 +258,8 @@ const getFollowedStory = async (req, res) => {
         const story = await storyModel.find({
             author: { $in: [...me.following, myId] }
         })
-        .populate('author', 'username profilePicture')
-        .sort({createdAt: -1})
+            .populate('author', 'username profilePicture')
+            .sort({ createdAt: -1 })
 
         const myStory = story.filter(s => s.author._id.toString() === myId)
         const otherStories = story.filter(s => s.author._id.toString() !== myId)
@@ -280,7 +276,7 @@ const isStoryAdded = async (req, res) => {
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -289,14 +285,14 @@ const isStoryAdded = async (req, res) => {
     let decoded;
 
     try {
-        
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const myId = decoded.id
 
-        const story = await storyModel.find({author: {$in: myId}}).select('author -_id')
+        const story = await storyModel.find({ author: { $in: myId } }).select('author -_id')
 
-        if(!story) {
+        if (!story) {
             return res.status(404).json({
                 message: 'Not found'
             })
@@ -311,4 +307,4 @@ const isStoryAdded = async (req, res) => {
 }
 
 
-module.exports = {addStory, likeStory, addComment, getComments, deleteStory, getFollowedStory, isStoryAdded}
+module.exports = { addStory, likeStory, addComment, getComments, deleteStory, getFollowedStory, isStoryAdded }

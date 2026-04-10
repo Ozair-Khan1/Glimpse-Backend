@@ -7,7 +7,7 @@ const createPost = async (req, res) => {
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -16,7 +16,7 @@ const createPost = async (req, res) => {
     let decoded;
 
     try {
-        const {caption} = req.body
+        const { caption } = req.body
 
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
@@ -24,6 +24,7 @@ const createPost = async (req, res) => {
 
         const uploadImage = await imagekit.uploadFile({
             buffer: req.file.buffer,
+            originalname: req.file.originalname,
             folder: 'post_images'
         })
 
@@ -37,7 +38,7 @@ const createPost = async (req, res) => {
         const populatePost = await newPost.populate('author', 'username, profilePicture');
 
         await userModel.findByIdAndUpdate(userId, {
-            $addToSet: {posts: newPost._id}
+            $addToSet: { posts: newPost._id }
         })
 
         res.status(201).json({
@@ -52,12 +53,12 @@ const createPost = async (req, res) => {
 
 const deletePost = async (req, res) => {
 
-    const {postId} = req.params
+    const { postId } = req.params
 
     const session = req.cookies.session
 
-    if(!session) {
-         return res.status(404).json({
+    if (!session) {
+        return res.status(404).json({
             message: 'User not found'
         })
     }
@@ -97,11 +98,11 @@ const deletePost = async (req, res) => {
 
 const toggleLike = async (req, res) => {
 
-    const {postId} = req.params
+    const { postId } = req.params
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -117,7 +118,7 @@ const toggleLike = async (req, res) => {
 
         const post = await postModel.findById(postId)
 
-        if(!post) {
+        if (!post) {
             return res.status(404).json({
                 message: 'Post not found'
             })
@@ -125,21 +126,21 @@ const toggleLike = async (req, res) => {
 
         const isLiked = post.likes.includes(userId)
 
-        if(isLiked) {
+        if (isLiked) {
             const updatedPost = await postModel.findByIdAndUpdate(postId, {
-                $pull: {likes: userId}
-            }, {returnDocument: 'after'})
-            .populate('author', 'username profilePicture')
+                $pull: { likes: userId }
+            }, { returnDocument: 'after' })
+                .populate('author', 'username profilePicture')
 
-            return res.status(200).json({updatedPost})
+            return res.status(200).json({ updatedPost })
         }
 
         const updatedPost = await postModel.findByIdAndUpdate(postId, {
-            $addToSet: {likes: userId}
-        }, {returnDocument: 'after'})
-        .populate('author', 'username profilePicture')
+            $addToSet: { likes: userId }
+        }, { returnDocument: 'after' })
+            .populate('author', 'username profilePicture')
 
-        res.status(201).json({updatedPost})
+        res.status(201).json({ updatedPost })
     } catch (error) {
         console.log(error)
     }
@@ -149,13 +150,13 @@ const toggleLike = async (req, res) => {
 
 const addComment = async (req, res) => {
 
-    const {postId} = req.params
+    const { postId } = req.params
 
-    const {text} = req.body
+    const { text } = req.body
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -168,7 +169,7 @@ const addComment = async (req, res) => {
     let decoded;
 
     try {
-        
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const userId = decoded.id
@@ -180,7 +181,7 @@ const addComment = async (req, res) => {
         };
 
         const updatedComments = await postModel.findByIdAndUpdate(
-            postId, 
+            postId,
             { $push: { comments: comment } },
             { returnDocument: 'after' }
         ).populate('comments.user', 'username profilePicture');
@@ -200,7 +201,7 @@ const getComments = async (req, res) => {
 
     try {
         const { postId } = req.params;
-        
+
         const post = await postModel.findById(postId)
             .populate({
                 path: 'comments',
@@ -245,7 +246,7 @@ const getFollowedPosts = async (req, res) => {
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -254,7 +255,7 @@ const getFollowedPosts = async (req, res) => {
     let decoded;
 
     try {
-        
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const myId = decoded.id
@@ -263,8 +264,8 @@ const getFollowedPosts = async (req, res) => {
         const posts = await postModel.find({
             author: { $in: [...me.following, myId] }
         })
-        .populate('author', 'username profilePicture')
-        .sort({createdAt: -1})
+            .populate('author', 'username profilePicture')
+            .sort({ createdAt: -1 })
 
         res.status(200).json(posts)
     } catch (error) {
@@ -276,7 +277,7 @@ const getMyPosts = async (req, res) => {
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
@@ -284,8 +285,8 @@ const getMyPosts = async (req, res) => {
 
     let decoded;
 
-     try {
-        
+    try {
+
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const myId = decoded.id
@@ -294,10 +295,10 @@ const getMyPosts = async (req, res) => {
         const posts = await postModel.find({
             author: me._id
         })
-        .populate('author', 'username profilePicture')
-        .sort({createdAt: -1})
+            .populate('author', 'username profilePicture')
+            .sort({ createdAt: -1 })
 
-         res.status(200).json({
+        res.status(200).json({
             posts: posts,
             postLength: posts.length
         })
@@ -309,21 +310,21 @@ const getMyPosts = async (req, res) => {
 
 const getPostById = async (req, res) => {
 
-    const {id} = req.params
+    const { id } = req.params
 
     const session = req.cookies.session
 
-    if(!session) {
+    if (!session) {
         return res.status(404).json({
             message: 'User not found'
         })
     }
 
     try {
-        
-        const post = await postModel.find({author: id})
-        .populate('author', 'username profilePicture')
-        .sort({createdAt: -1})
+
+        const post = await postModel.find({ author: id })
+            .populate('author', 'username profilePicture')
+            .sort({ createdAt: -1 })
 
         res.status(200).json(post)
 
@@ -333,4 +334,4 @@ const getPostById = async (req, res) => {
 
 }
 
-module.exports = {createPost, toggleLike, addComment, getFollowedPosts, deletePost, getMyPosts, getComments, gerProfilePostComment, getPostById}
+module.exports = { createPost, toggleLike, addComment, getFollowedPosts, deletePost, getMyPosts, getComments, gerProfilePostComment, getPostById }

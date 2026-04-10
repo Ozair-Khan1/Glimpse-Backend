@@ -28,26 +28,27 @@ const addPfp = async (req, res) => {
 
         const user = await userModel.findById(decoded.id)
 
-        if(!user) {
+        if (!user) {
             return res.status(404).json({
                 messager: 'User not found'
             })
         }
 
-        if(user.profilePictureId) {
+        if (user.profilePictureId) {
             try {
-                
+
                 await imageKitService.deleteImageKitFile(user.profilePictureId)
 
                 console.log('pfp deleted')
 
             } catch (error) {
-                console.log(error)                
+                console.log(error)
             }
         }
 
         const result = await imageKitService.uploadFile({
             buffer: req.file.buffer,
+            originalname: req.file.originalname,
             folder: 'profile_pictures'
         })
 
@@ -70,12 +71,12 @@ const addPfp = async (req, res) => {
 
 const addBio = async (req, res) => {
 
-    const {bio} = req.body
-    
+    const { bio } = req.body
+
     const session = req.cookies.session
 
     try {
-        
+
         let decodded;
 
         try {
@@ -86,7 +87,7 @@ const addBio = async (req, res) => {
 
         const findUser = await userModel.findByIdAndUpdate(decodded.id, {
             bio: bio
-        }, {returnDocument: 'after'})
+        }, { returnDocument: 'after' })
 
         await findUser.save()
 
@@ -100,4 +101,4 @@ const addBio = async (req, res) => {
 
 }
 
-module.exports = {addPfp, addBio}
+module.exports = { addPfp, addBio }

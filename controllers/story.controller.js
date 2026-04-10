@@ -40,6 +40,7 @@ const addStory = async (req, res) => {
 
     const result = await imageKit.uploadFile({
         buffer: req.file.buffer,
+        originalname: req.file.originalname,
         folder: 'Story_images'
     })
 

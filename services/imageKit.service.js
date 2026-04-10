@@ -7,10 +7,11 @@ const imagekit = new ImageKit({
     urlEndpoint: process.env.IMAGE_KIT_URL
 })
 
-const uploadFile = async ({buffer, folder}) => {
+const uploadFile = async ({ buffer, originalname, folder }) => {
+    const fileName = originalname || `profile_${Date.now()}.jpg`;
     const result = await imagekit.upload({
-        file: buffer.toString('base64'),
-        fileName: `profile_${Date.now()}.jpg`,
+        file: buffer,
+        fileName: fileName,
         folder: folder
     });
 
@@ -21,19 +22,19 @@ const cleanUpStories = async () => {
     const expirationTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const expiredStories = await storyModel.find({
-        createdAt: {$lt: expirationTime}
+        createdAt: { $lt: expirationTime }
     })
 
-    if(expiredStories.length > 0) {
+    if (expiredStories.length > 0) {
         const fileId = expiredStories.map(s => s.imageId)
         console.log("Current Time:", new Date());
         console.log("Checking for stories created before:", expirationTime);
 
         try {
-            
+
             await imagekit.bulkDeleteFiles(fileId)
 
-            await storyModel.deleteMany({_id: {$in: expiredStories.map(s => s._id)}});
+            await storyModel.deleteMany({ _id: { $in: expiredStories.map(s => s._id) } });
 
             console.log(`✅ Success: Deleted ${expiredStories.length} stories from DB and ImageKit.`)
 
@@ -53,4 +54,4 @@ const deleteImageKitFile = async (fileId) => {
     }
 };
 
-module.exports = {uploadFile, deleteImageKitFile, cleanUpStories}
+module.exports = { uploadFile, deleteImageKitFile, cleanUpStories }

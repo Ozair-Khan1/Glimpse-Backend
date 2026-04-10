@@ -1,13 +1,9 @@
 const express = require('express')
-const multer = require('multer')
 const postController = require('../controllers/post.controller')
 
 const router = express.Router()
 
-const upload = multer({ storage: multer.memoryStorage() })
-
-
-router.post('/create-post', upload.single('image'), postController.createPost)
+router.post('/create-post', postController.createPost)
 router.get('/posts', postController.getFollowedPosts)
 router.post('/like/:postId', postController.toggleLike)
 router.post('/comment/:postId', postController.addComment)

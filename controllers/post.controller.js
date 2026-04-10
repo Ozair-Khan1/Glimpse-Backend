@@ -1,5 +1,5 @@
 const postModel = require('../models/post.model')
-const imagekit = require('../services/imageKit.service')
+const { del } = require('@vercel/blob')
 const jwt = require('jsonwebtoken')
 const userModel = require('../models/auth.model')
 
@@ -16,23 +16,17 @@ const createPost = async (req, res) => {
     let decoded;
 
     try {
-        const { caption } = req.body
+        const { caption, imageUrl } = req.body
 
         decoded = jwt.verify(session, process.env.JWT_SECRET)
 
         const userId = decoded.id
 
-        const uploadImage = await imagekit.uploadFile({
-            buffer: req.file.buffer,
-            originalname: req.file.originalname,
-            folder: 'post_images'
-        })
-
         const newPost = await postModel.create({
             author: userId,
             caption: caption,
-            imageUrl: uploadImage.url,
-            imageId: uploadImage.fileId
+            imageUrl: imageUrl,
+            imageId: imageUrl // We use the url for Vercel Blob deletion
         })
 
         const populatePost = await newPost.populate('author', 'username, profilePicture');
@@ -80,12 +74,15 @@ const deletePost = async (req, res) => {
             return res.status(403).json({ message: "You are not authorized to delete this post" });
         }
 
-        if (post.imageId) {
-            await imagekit.deleteImageKitFile(post.imageId);
-            console.log("Deleted image from ImageKit:", post.imageId);
+        if (post.imageUrl) {
+            try {
+                await del(post.imageUrl);
+                console.log("Deleted media from Vercel Blob:", post.imageUrl);
+            } catch (err) {
+                console.error("Vercel Blob Delete Error:", err);
+            }
         }
 
-        // 4. Delete document from MongoDB
         await postModel.findByIdAndDelete(postId);
 
         res.status(200).json({ message: "Post deleted successfully" })

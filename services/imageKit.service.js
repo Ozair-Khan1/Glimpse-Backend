@@ -20,29 +20,6 @@ const uploadFile = async ({ buffer, originalname, folder }) => {
 };
 
 const cleanUpStories = async () => {
-    const expirationTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    const expiredStories = await storyModel.find({
-        createdAt: { $lt: expirationTime }
-    })
-
-    if (expiredStories.length > 0) {
-        const fileId = expiredStories.map(s => s.imageId)
-        console.log("Current Time:", new Date());
-        console.log("Checking for stories created before:", expirationTime);
-
-        try {
-
-            await del(fileId)
-
-            await storyModel.deleteMany({ _id: { $in: expiredStories.map(s => s._id) } });
-
-            console.log(`Success: Deleted ${expiredStories.length} stories from DB and ImageKit.`)
-
-        } catch (error) {
-            console.log('Clean up', error)
-        }
-    }
 }
 
 const deleteImageKitFile = async (fileId) => {

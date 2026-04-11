@@ -1,7 +1,8 @@
 const imageKit = require('./imageKit.service')
+const cronJob = require('node-cron')
 
 const croneJob = () => {
-    croneJob.schedule('0 * * * *', async () => {
+    cronJob.schedule('0 * * * *', async () => {
         console.log('Running Hourly Story Cleanup');
 
         try {

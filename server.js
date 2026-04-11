@@ -10,11 +10,11 @@ const startServer = async () => {
     try {
         await connectDB()
 
+
+        croneJob()
         app.listen(process.env.PORT_NUM, () => {
             console.log('Server and Db connected')
         })
-
-        croneJob()
     } catch (error) {
         console.log(error)
     }

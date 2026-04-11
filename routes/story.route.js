@@ -11,5 +11,6 @@ router.get('/get-comments/:storyId', storyController.getComments)
 router.post('/delete-story/:storyId', storyController.deleteStory)
 router.get('/get-follower-story', storyController.getFollowedStory)
 router.get('/my-story', storyController.isStoryAdded)
+router.get('/story-cleanup', storyController.storyCleanup)
 
 module.exports = router

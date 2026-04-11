@@ -1,5 +1,6 @@
 const ImageKit = require('imagekit')
 const storyModel = require('../models/story.model')
+const { del } = require('@vercel/blob')
 
 const imagekit = new ImageKit({
     publicKey: process.env.IMAGE_KIT_PUBLIC,
@@ -32,11 +33,11 @@ const cleanUpStories = async () => {
 
         try {
 
-            await imagekit.bulkDeleteFiles(fileId)
+            await del(fileId)
 
             await storyModel.deleteMany({ _id: { $in: expiredStories.map(s => s._id) } });
 
-            console.log(`✅ Success: Deleted ${expiredStories.length} stories from DB and ImageKit.`)
+            console.log(`Success: Deleted ${expiredStories.length} stories from DB and ImageKit.`)
 
         } catch (error) {
             console.log('Clean up', error)

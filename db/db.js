@@ -3,16 +3,21 @@ dotEnv.config()
 const mongoose = require('mongoose')
 
 
-const connectDB = async () => {
+let isConnected = false;
 
-    try {
-        console.log('connecting to db')
-        await mongoose.connect(process.env.MONGO_URI)
-        console.log('db connected')
-    } catch (error) {
-        console.log(error)
+const connectDB = async () => {
+    if (isConnected) {
+        return;
     }
 
-}
+    try {
+        console.log('Connecting to db...');
+        const db = await mongoose.connect(process.env.MONGO_URI);
+        isConnected = db.connections[0].readyState;
+        console.log('DB connected');
+    } catch (error) {
+        console.error('DB Connection Error:', error);
+    }
+};
 
 module.exports = connectDB

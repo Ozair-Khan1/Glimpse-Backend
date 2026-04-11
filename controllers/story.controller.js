@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 const storyModel = require('../models/story.model')
 const { del } = require('@vercel/blob')
 const userModel = require('../models/auth.model')
-const connectDB = require('../db/db')
+
 
 
 const addStory = async (req, res) => {
@@ -308,8 +308,6 @@ const isStoryAdded = async (req, res) => {
 }
 
 const storyCleanup = async (req, res) => {
-
-    await connectDB()
 
     const authHeader = req.headers['authorization'];
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
